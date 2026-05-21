@@ -1,23 +1,109 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, type CSSProperties, type ReactNode } from "react";
+
+// ==================== TYPES ====================
+type Club = {
+  id: string;
+  name: string;
+  color: string;
+  monthly: number | null;
+  daily: number | null;
+};
+
+type Staff = {
+  id: string;
+  name: string;
+  shortcut: string;
+  role: string;
+  club: string | null;
+  salary: number | null;
+  dailySalary: number | null;
+  managementBonus: number;
+  emoji: string;
+  inAttendance: boolean;
+};
+
+type LoadItem = {
+  id: number;
+  clubId: string;
+  day: string;
+  amount: string;
+  note: string;
+};
+
+type BonusItem = {
+  id: number;
+  staffId: string;
+  amount: string;
+  type: string;
+  note: string;
+  date: string;
+};
+
+type SalafItem = {
+  id: number;
+  staffId: string;
+  date: string;
+  amount: string;
+  note: string;
+  returned: boolean;
+};
+
+type NewClubState = {
+  name: string;
+  daily: string | null;
+  monthly: string;
+  color: string;
+};
+
+type NewStaffState = {
+  name: string;
+  role: string;
+  club: string;
+  salary: string;
+  emoji: string;
+  inAttendance: boolean;
+};
+
+type NewLoadState = {
+  clubId: string;
+  day: string;
+  amount: string;
+  note: string;
+};
+
+type NewBonusState = {
+  staffId: string;
+  amount: string;
+  type: string;
+  note: string;
+  date: string;
+};
+
+type NewSalafState = {
+  staffId: string;
+  amount: string;
+  note: string;
+  date: string;
+};
 
 // ==================== CONSTANTS ====================
-const CLUBS = [
+const CLUBS: Club[] = [
   { id: "xo",   name: "XO Cairo", color: "#FF6B35", monthly: 31000, daily: null },
   { id: "nox",  name: "Nox",      color: "#A855F7", monthly: null,  daily: 800  },
   { id: "sess", name: "Sess",     color: "#22D3EE", monthly: null,  daily: 600  },
   { id: "ok1",  name: "1ok Club", color: "#4ADE80", monthly: 28000, daily: null },
 ];
 
-const INITIAL_STAFF = [
+const INITIAL_STAFF: Staff[] = [
   { id:"framel", name:"Framel", shortcut:"F",  role:"مشغل + مدير", club:"nox", salary:null, dailySalary:500, managementBonus:4500, emoji:"👑", inAttendance:true },
-  { id:"fifty",  name:"Fifty",  shortcut:"Fi", role:"مشغل",        club:"ok1", salary:8000,  managementBonus:0,    emoji:"🎛️", inAttendance:true },
-  { id:"khaled", name:"Khaled", shortcut:"K",  role:"مشغل",        club:"xo",  salary:8000,  managementBonus:0,    emoji:"🎛️", inAttendance:true },
-  { id:"ta7a",   name:"Ta7a",   shortcut:"T",  role:"مشغل",        club:"ok1", salary:10000, managementBonus:0,    emoji:"🎛️", inAttendance:true },
-  { id:"badwy",  name:"Badwy",  shortcut:"-",  role:"علاقات عامة", club:null,  salary:5000,  managementBonus:0,    emoji:"🤝", inAttendance:false },
+  { id:"fifty",  name:"Fifty",  shortcut:"Fi", role:"مشغل",        club:"ok1", salary:8000,  dailySalary:null, managementBonus:0,    emoji:"🎛️", inAttendance:true },
+  { id:"khaled", name:"Khaled", shortcut:"K",  role:"مشغل",        club:"xo",  salary:8000,  dailySalary:null, managementBonus:0,    emoji:"🎛️", inAttendance:true },
+  { id:"ta7a",   name:"Ta7a",   shortcut:"T",  role:"مشغل",        club:"ok1", salary:10000, dailySalary:null, managementBonus:0,    emoji:"🎛️", inAttendance:true },
+  { id:"badwy",  name:"Badwy",  shortcut:"-",  role:"علاقات عامة", club:null,  salary:5000,  dailySalary:null, managementBonus:0,    emoji:"🤝", inAttendance:false },
 ];
 
 // ---- Shortcut helpers ----
-function buildShortcut(name, existingShortcuts) {
+function buildShortcut(name: string, existingShortcuts: string[]): string {
   const clean = name.replace(/[^a-zA-Z]/g, "");
   if (!clean) return name.slice(0,2).toUpperCase();
   const one = clean[0].toUpperCase();
@@ -28,8 +114,8 @@ function buildShortcut(name, existingShortcuts) {
   return twoU + existingShortcuts.length;
 }
 
-function buildShortcutMap(staffList) {
-  const map = { off:"__OFF__", Off:"__OFF__", OFF:"__OFF__" };
+function buildShortcutMap(staffList: Staff[]): Record<string,string> {
+  const map: Record<string,string> = { off:"__OFF__", Off:"__OFF__", OFF:"__OFF__" };
   staffList.forEach(s => {
     if (!s.shortcut || s.shortcut === "-") return;
     [s.shortcut, s.shortcut.toLowerCase(), s.shortcut.toUpperCase()].forEach(v => { map[v] = s.id; });
@@ -42,13 +128,13 @@ function buildShortcutMap(staffList) {
   return map;
 }
 
-function parseShortcuts(input, staffList) {
-  if (!input || !input.trim()) return { ids:[], isOff:false };
+function parseShortcuts(input: string, staffList: Staff[]) {
+  if (!input || !input.trim()) return { ids:[] as string[], isOff:false };
   const tokens = input.trim().split(/[\s,،]+/);
   const map = buildShortcutMap(staffList);
-  const ids = [];
+  const ids: string[] = [];
   let isOff = false;
-  tokens.forEach(t => {
+  tokens.forEach((t: string) => {
     if (!t) return;
     const val = map[t] || map[t.toLowerCase()] || map[t.toUpperCase()];
     if (val === "__OFF__") isOff = true;
@@ -57,60 +143,69 @@ function parseShortcuts(input, staffList) {
   return { ids:[...new Set(ids)], isOff };
 }
 
-function getDaysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
-function formatEGP(n) { if (isNaN(n)) return "0 جنيه"; return Number(n).toLocaleString("ar-EG") + " جنيه"; }
+function getDaysInMonth(y: number, m: number): number { return new Date(y, m+1, 0).getDate(); }
+function formatEGP(n: number): string { if (isNaN(n)) return "0 جنيه"; return Number(n).toLocaleString("ar-EG") + " جنيه"; }
 
 // ==================== MAIN APP ====================
 export default function App() {
   const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear,  setCurrentYear]  = useState(today.getFullYear());
-  const [activeTab,    setActiveTab]    = useState("dashboard");
-  const [staff,        setStaff]        = useState(INITIAL_STAFF);
+  const [currentMonth, setCurrentMonth] = useState<number>(() => { const s = localStorage.getItem("currentMonth"); return s !== null ? Number(s) : today.getMonth(); });
+  const [currentYear,  setCurrentYear]  = useState<number>(() => { const s = localStorage.getItem("currentYear");  return s !== null ? Number(s) : today.getFullYear(); });
+  const [activeTab,    setActiveTab]    = useState<string>("dashboard");
+  const [staff,        setStaff]        = useState<Staff[]>(() => { const s = localStorage.getItem("staff"); return s ? JSON.parse(s) as Staff[] : INITIAL_STAFF; });
 
-  const [clubs, setClubs] = useState(CLUBS);
+  const [clubs, setClubs] = useState<Club[]>(() => { const s = localStorage.getItem("clubs"); return s ? JSON.parse(s) as Club[] : CLUBS; });
   const [showAddClub, setShowAddClub] = useState(false);
-  const [newClub, setNewClub] = useState({ name:"", daily:null, monthly:"", color:"#A855F7" });
+  const [newClub, setNewClub] = useState<NewClubState>({ name:"", daily:null, monthly:"", color:"#A855F7" });
 
-  const [attendance, setAttendance] = useState({});   // [staffId][day] = "present"|"off"
-  const [sessInput,  setSessInput]  = useState({});   // [day] = "T, Fi, K" | "off"
-  const [clubOff,    setClubOff]    = useState({});   // [clubId][day] = true
+  const [attendance, setAttendance] = useState<Record<string, Record<number, string | null>>>(() => { const s = localStorage.getItem("attendance"); return s ? JSON.parse(s) as Record<string, Record<number, string | null>> : {}; });
+  const [sessInput,  setSessInput]  = useState<Record<number, string>>(() => { const s = localStorage.getItem("sessInput");  return s ? JSON.parse(s) as Record<number, string> : {}; });
+  const [clubOff,    setClubOff]    = useState<Record<string, Record<number, boolean>>>(() => { const s = localStorage.getItem("clubOff");    return s ? JSON.parse(s) as Record<string, Record<number, boolean>> : {}; });
 
   // Load: [{ id, clubId, day, amount, note }]
-  const [loads, setLoads] = useState(() => {
+  const [loads, setLoads] = useState<LoadItem[]>(() => {
     const saved = localStorage.getItem("loads");
-    return saved ? JSON.parse(saved) : [];
-  })
-  useEffect(() => {
-    localStorage.setItem("loads", JSON.stringify(loads));
-  }, [loads])
-  const [newLoad, setNewLoad] = useState({ clubId:"xo", day:"", amount:"", note:"" });
+    return saved ? JSON.parse(saved) as LoadItem[] : [];
+  });
+  const [newLoad, setNewLoad] = useState<NewLoadState>({ clubId:"xo", day:"", amount:"", note:"" });
 
   // Bonuses: [{ id, staffId, amount, type, note, date }]
-  const [bonuses, setBonuses]   = useState([]);
-  const [newBonus, setNewBonus] = useState({ staffId:"framel", amount:"", type:"حافز", note:"", date:"" });
+  const [bonuses, setBonuses] = useState<BonusItem[]>(() => { const s = localStorage.getItem("bonuses"); return s ? JSON.parse(s) as BonusItem[] : []; });
+  const [newBonus, setNewBonus] = useState<NewBonusState>({ staffId:"framel", amount:"", type:"حافز", note:"", date:"" });
 
   // Salaf: [{ id, staffId, date, amount, note, returned }]
-  const [salaf, setSalaf]   = useState([]);
-  const [newSalaf, setNewSalaf] = useState({ staffId:"framel", amount:"", note:"", date:"" });
+  const [salaf, setSalaf] = useState<SalafItem[]>(() => { const s = localStorage.getItem("salaf"); return s ? JSON.parse(s) as SalafItem[] : []; });
+  const [newSalaf, setNewSalaf] = useState<NewSalafState>({ staffId:"framel", amount:"", note:"", date:"" });
 
   const [showAddStaff, setShowAddStaff] = useState(false);
-  const [newStaff, setNewStaff] = useState({ name:"", role:"", club:"nox", salary:0, emoji:"👤", inAttendance:true });
+  const [newStaff, setNewStaff] = useState<NewStaffState>({ name:"", role:"", club:"nox", salary:"0", emoji:"👤", inAttendance:true });
+
+  // ==================== PERSIST TO LOCALSTORAGE ====================
+  useEffect(() => { localStorage.setItem("currentMonth", String(currentMonth)); }, [currentMonth]);
+  useEffect(() => { localStorage.setItem("currentYear",  String(currentYear));  }, [currentYear]);
+  useEffect(() => { localStorage.setItem("staff",      JSON.stringify(staff));      }, [staff]);
+  useEffect(() => { localStorage.setItem("clubs",      JSON.stringify(clubs));      }, [clubs]);
+  useEffect(() => { localStorage.setItem("attendance", JSON.stringify(attendance)); }, [attendance]);
+  useEffect(() => { localStorage.setItem("sessInput",  JSON.stringify(sessInput));  }, [sessInput]);
+  useEffect(() => { localStorage.setItem("clubOff",    JSON.stringify(clubOff));    }, [clubOff]);
+  useEffect(() => { localStorage.setItem("loads",      JSON.stringify(loads));      }, [loads]);
+  useEffect(() => { localStorage.setItem("bonuses",    JSON.stringify(bonuses));    }, [bonuses]);
+  useEffect(() => { localStorage.setItem("salaf",      JSON.stringify(salaf));      }, [salaf]);
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
   const monthName   = new Date(currentYear, currentMonth, 1).toLocaleDateString("ar-EG", { month:"long", year:"numeric" });
 
   // ==================== CALCULATIONS ====================
   const calc = useMemo(() => {
-    const clubWorkDays = {}, clubRevenues = {}, clubDailyRate = {};
+    const clubWorkDays: Record<string, number> = {}, clubRevenues: Record<string, number> = {}, clubDailyRate: Record<string, number> = {};
     clubs.forEach(c => {
       let days = 0;
       for (let d = 1; d <= daysInMonth; d++) if (!clubOff[c.id]?.[d]) days++;
       clubWorkDays[c.id] = days;
       // Daily clubs: exact daily rate. Monthly clubs: proportional, no intermediate rounding
-      const rate = c.daily ? c.daily : (c.monthly / daysInMonth);
-      clubDailyRate[c.id] = c.daily ? c.daily : c.monthly;
-      clubRevenues[c.id]  = c.daily ? Math.round(rate * days) : Math.round(c.monthly * days / daysInMonth);
+      const rate = c.daily ? c.daily : ((c.monthly ?? 0) / daysInMonth);
+      clubDailyRate[c.id] = c.daily ? c.daily : (c.monthly ?? 0);
+      clubRevenues[c.id]  = c.daily ? Math.round(rate * days) : Math.round((c.monthly ?? 0) * days / daysInMonth);
     });
     const totalRevenue = Object.values(clubRevenues).reduce((a,b)=>a+b,0);
 
@@ -118,7 +213,7 @@ export default function App() {
       if (!s.inAttendance) {
         const salafTotal = salaf.filter(sl=>sl.staffId===s.id&&!sl.returned).reduce((a,sl)=>a+Number(sl.amount),0);
         const bonusEarned1 = bonuses.filter(b=>b.staffId===s.id).reduce((a,b)=>a+Number(b.amount),0);
-        const fixedSalary1 = s.dailySalary ? s.dailySalary * daysInMonth : s.salary;
+        const fixedSalary1 = s.dailySalary ? s.dailySalary * daysInMonth : (s.salary ?? 0);
         const netFixed = Math.max(0, fixedSalary1 + s.managementBonus + bonusEarned1 - salafTotal);
         return { ...s, offDays:0, deduction:0, sessCount:0, sessEarned:0, bonusEarned:bonusEarned1, total:netFixed, salafTotal };
       }
@@ -128,8 +223,8 @@ export default function App() {
         const clubOffDay = s.club && clubOff[s.club]?.[d];
         if (manualOff || clubOffDay) offDays++;
       }
-      const effectiveSalary = s.dailySalary ? s.dailySalary * daysInMonth : s.salary;
-      const dailyRate = s.dailySalary ? s.dailySalary : (s.salary / daysInMonth);
+      const effectiveSalary = s.dailySalary ? s.dailySalary * daysInMonth : (s.salary ?? 0);
+      const dailyRate = s.dailySalary ? s.dailySalary : ((s.salary ?? 0) / daysInMonth);
       const deduction = Math.round(dailyRate * offDays);
       const earned    = effectiveSalary - deduction;
 
@@ -150,7 +245,7 @@ export default function App() {
     const totalSalaries = staffSalaries.reduce((a,s)=>a+s.total,0);
 
     // Load totals per club this month
-    const loadByClub = {};
+    const loadByClub: Record<string, number> = {};
     clubs.forEach(c => { loadByClub[c.id] = loads.filter(l=>l.clubId===c.id).reduce((a,l)=>a+Number(l.amount),0); });
     const totalLoads = Object.values(loadByClub).reduce((a,b)=>a+b,0);
 
@@ -168,18 +263,18 @@ export default function App() {
     ];
     const periodReports = periods.map(p => {
       const pDays = p.to - p.from + 1;
-      const periodRevenue = {};
+      const periodRevenue: Record<string, number> = {};
       clubs.forEach(c => {
         let wDays = 0;
         for (let d = p.from; d <= p.to; d++) if (!clubOff[c.id]?.[d]) wDays++;
-        periodRevenue[c.id] = c.daily ? Math.round(c.daily * wDays) : Math.round(c.monthly * wDays / daysInMonth);
+        periodRevenue[c.id] = c.daily ? Math.round(c.daily * wDays) : Math.round((c.monthly ?? 0) * wDays / daysInMonth);
       });
       const totalPR = Object.values(periodRevenue).reduce((a,b)=>a+b,0);
       const periodLoads = loads.filter(l=>Number(l.day)>=p.from&&Number(l.day)<=p.to).reduce((a,l)=>a+Number(l.amount),0);
 
       const periodSalaries = staff.map(s => {
         if (!s.inAttendance) {
-          return { ...s, offDays:0, sessCount:0, sessEarned:0, earned: Math.round((s.salary/daysInMonth)*pDays) };
+          return { ...s, offDays:0, sessCount:0, sessEarned:0, earned: Math.round(((s.salary ?? 0)/daysInMonth)*pDays) };
         }
         let offDays = 0;
         for (let d = p.from; d <= p.to; d++) {
@@ -187,7 +282,7 @@ export default function App() {
           const clubOffDay = s.club && clubOff[s.club]?.[d];
           if (manualOff || clubOffDay) offDays++;
         }
-        const dailyRate2 = s.dailySalary ? s.dailySalary : (s.salary / daysInMonth);
+        const dailyRate2 = s.dailySalary ? s.dailySalary : ((s.salary ?? 0) / daysInMonth);
         const salaryShare = Math.round(dailyRate2 * pDays) - Math.round(dailyRate2 * offDays);
         const mgmtShare = Math.round((s.managementBonus / daysInMonth) * pDays);
         let sessCount = 0;
@@ -206,25 +301,25 @@ export default function App() {
   }, [attendance, clubOff, sessInput, staff, clubs, loads, salaf, bonuses, daysInMonth, currentMonth, currentYear]);
 
   // ==================== HANDLERS ====================
-  const toggleAttendance = (sid, day) => {
+  const toggleAttendance = (sid: string, day: number) => {
     setAttendance(prev => {
       const cur = prev[sid]?.[day];
       const next = cur==="present"?"off":cur==="off"?null:"present";
       return { ...prev, [sid]: { ...(prev[sid]||{}), [day]: next } };
     });
   };
-  const toggleClubOff = (cid, day) => setClubOff(prev=>({...prev,[cid]:{...(prev[cid]||{}),[day]:!prev[cid]?.[day]}}));
+  const toggleClubOff = (cid: string, day: number) => setClubOff(prev => ({ ...prev, [cid]: { ...(prev[cid] || {}), [day]: !prev[cid]?.[day] } }));
 
   const addStaffMember = () => {
     if (!newStaff.name) return;
     const existingShortcuts = staff.map(s=>s.shortcut);
     const shortcut = buildShortcut(newStaff.name, existingShortcuts);
     const id = newStaff.name.toLowerCase().replace(/\s/g,"_") + Date.now();
-    setStaff(prev=>[...prev,{ id, name:newStaff.name, shortcut, role:newStaff.role, club:newStaff.club||null, salary:parseInt(newStaff.salary)||0, managementBonus:0, emoji:newStaff.emoji||"👤", inAttendance:newStaff.inAttendance }]);
-    setNewStaff({ name:"", role:"", club:"nox", salary:0, emoji:"👤", inAttendance:true });
+    setStaff(prev=>[...prev,{ id, name:newStaff.name, shortcut, role:newStaff.role, club:newStaff.club||null, salary:parseInt(newStaff.salary)||0, dailySalary:null, managementBonus:0, emoji:newStaff.emoji||"👤", inAttendance:newStaff.inAttendance }]);
+    setNewStaff({ name:"", role:"", club:"nox", salary:"0", emoji:"👤", inAttendance:true });
     setShowAddStaff(false);
   };
-  const removeStaff = id => setStaff(prev=>prev.filter(s=>s.id!==id));
+  const removeStaff = (id: string) => setStaff(prev=>prev.filter(s=>s.id!==id));
 
   const addClub = () => {
     if (!newClub.name) return;
@@ -235,14 +330,14 @@ export default function App() {
     setNewClub({ name:"", daily:null, monthly:"", color:"#A855F7" });
     setShowAddClub(false);
   };
-  const removeClub = id => setClubs(prev => prev.filter(c => c.id !== id));
+  const removeClub = (id: string) => setClubs(prev => prev.filter(c => c.id !== id));
 
   const addLoad = () => {
     if (!newLoad.amount || !newLoad.day) return;
     setLoads(prev=>[...prev,{ id:Date.now(), ...newLoad }]);
     setNewLoad({ clubId:"xo", day:"", amount:"", note:"" });
   };
-  const removeLoad = id => setLoads(prev=>prev.filter(l=>l.id!==id));
+  const removeLoad = (id: number) => setLoads(prev=>prev.filter(l=>l.id!==id));
 
   const addSalaf = () => {
     if (!newSalaf.amount) return;
@@ -250,10 +345,10 @@ export default function App() {
     setNewSalaf({ staffId:"framel", amount:"", note:"", date:"" });
   };
   const addBonus = () => { if (!newBonus.amount) return; setBonuses(prev=>[...prev,{ id:Date.now(), ...newBonus }]); setNewBonus({ staffId:"framel", amount:"", type:"حافز", note:"", date:"" }); };
-  const removeBonus = id => setBonuses(prev=>prev.filter(b=>b.id!==id));
+  const removeBonus = (id: number) => setBonuses(prev=>prev.filter(b=>b.id!==id));
 
-  const toggleSalafReturned = id => setSalaf(prev=>prev.map(s=>s.id===id?{...s,returned:!s.returned}:s));
-  const removeSalaf = id => setSalaf(prev=>prev.filter(s=>s.id!==id));
+  const toggleSalafReturned = (id: number) => setSalaf(prev=>prev.map(s=>s.id===id?{...s,returned:!s.returned}:s));
+  const removeSalaf = (id: number) => setSalaf(prev=>prev.filter(s=>s.id!==id));
 
   const prevMonth = () => { setAttendance({}); setClubOff({}); setSessInput({}); if(currentMonth===0){setCurrentMonth(11);setCurrentYear(y=>y-1);}else setCurrentMonth(m=>m-1); };
   const nextMonth = () => { setAttendance({}); setClubOff({}); setSessInput({}); if(currentMonth===11){setCurrentMonth(0);setCurrentYear(y=>y+1);}else setCurrentMonth(m=>m+1); };
@@ -362,7 +457,7 @@ export default function App() {
 
             <SectionTitle>إيرادات الكلوبات</SectionTitle>
             <div style={{ display:"flex",flexDirection:"column",gap:8,marginBottom:14 }}>
-              {CLUBS.map(c=>{
+              {clubs.map(c=>{
                 const rev=calc.clubRevenues[c.id];
                 const maxR=Math.max(...Object.values(calc.clubRevenues));
                 return (
@@ -390,7 +485,7 @@ export default function App() {
             </div>
             <div style={{ display:"flex",flexDirection:"column",gap:8 }}>
               {calc.staffSalaries.map(s=>{
-                const club=CLUBS.find(c=>c.id===s.club);
+                const club=clubs.find(c=>c.id===s.club);
                 return (
                   <div key={s.id} style={{ ...cardStyle,display:"flex",alignItems:"center",gap:11 }}>
                     <div style={{ width:42,height:42,borderRadius:11,background:club?`${club.color}20`:"rgba(255,255,255,.06)",border:`2px solid ${club?club.color:"rgba(255,255,255,.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0 }}>{s.emoji}</div>
@@ -437,7 +532,7 @@ export default function App() {
                 </thead>
                 <tbody>
                   {attendanceStaff.map(s=>{
-                    const club=CLUBS.find(c=>c.id===s.club);
+                    const club=clubs.find(c=>c.id===s.club);
                     const sd=calc.staffSalaries.find(x=>x.id===s.id)||{offDays:0};
                     return (
                       <tr key={s.id}>
@@ -847,7 +942,7 @@ export default function App() {
             {clubs.map(club=>{
               const offDays=Object.values(clubOff[club.id]||{}).filter(Boolean).length;
               const workDays=daysInMonth-offDays;
-              const rev = club.daily ? Math.round(club.daily*workDays) : Math.round(club.monthly*workDays/daysInMonth);
+              const rev = club.daily ? Math.round(club.daily*workDays) : Math.round((club.monthly ?? 0)*workDays/daysInMonth);
               return (
                 <div key={club.id} style={{ ...cardStyle,marginBottom:12,borderTop:`3px solid ${club.color}` }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
@@ -869,7 +964,7 @@ export default function App() {
                       );
                     })}
                   </div>
-                  {offDays>0&&<div style={{ marginTop:8,padding:"5px 10px",background:"rgba(248,113,113,.07)",borderRadius:8,fontSize:12,color:"#f87171" }}>⚠️ خسارة: {formatEGP(club.daily ? Math.round(club.daily*offDays) : Math.round(club.monthly*offDays/daysInMonth))}</div>}
+                  {offDays>0&&<div style={{ marginTop:8,padding:"5px 10px",background:"rgba(248,113,113,.07)",borderRadius:8,fontSize:12,color:"#f87171" }}>⚠️ خسارة: {formatEGP(club.daily ? Math.round(club.daily*offDays) : Math.round((club.monthly ?? 0)*offDays/daysInMonth))}</div>}
                   {!CLUBS.find(c=>c.id===club.id)&&(
                     <button onClick={()=>removeClub(club.id)} style={{ marginTop:8,background:"rgba(248,113,113,.1)",border:"1px solid rgba(248,113,113,.3)",borderRadius:8,color:"#f87171",padding:"4px 12px",cursor:"pointer",fontSize:12,fontFamily:"Cairo",fontWeight:700,width:"100%" }}>🗑️ حذف الكلوب</button>
                   )}
@@ -884,20 +979,19 @@ export default function App() {
 }
 
 // ==================== HELPERS ====================
-function StatCard({label,value,icon,color,sub}){
+function StatCard({label,value,icon,color,sub}: {label: string; value: string; icon: string; color: string; sub: string}){
   return <div style={{...cardStyle,textAlign:"center",borderTop:`3px solid ${color}`}}><div style={{fontSize:22,marginBottom:4}}>{icon}</div><div style={{fontSize:15,fontWeight:900,color}}>{value}</div><div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{label}</div><div style={{fontSize:10,color:"#6b7280"}}>{sub}</div></div>;
 }
-function SectionTitle({children}){
+function SectionTitle({children}: {children: ReactNode}){
   return <div style={{fontWeight:900,fontSize:14,color:"#c084fc",marginBottom:9,display:"flex",alignItems:"center",gap:7}}><div style={{width:3,height:16,background:"#7c3aed",borderRadius:2}}/>{children}</div>;
 }
-function Row({label,value,color,bold}){
+function Row({label,value,color,bold}: {label: string; value: string; color: string; bold?: boolean}){
   return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:bold?14:13,fontWeight:bold?900:600,color:bold?color:"#9ca3af"}}>{label}</span><span style={{fontSize:bold?17:14,fontWeight:900,color}}>{value}</span></div>;
 }
 
-const cardStyle={background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:15,padding:13};
-const arrowBtn={background:"rgba(124,58,237,.2)",border:"1px solid rgba(124,58,237,.4)",borderRadius:8,color:"#c084fc",width:32,height:32,cursor:"pointer",fontSize:18,fontFamily:"Cairo",display:"flex",alignItems:"center",justifyContent:"center"};
-const thStyle={padding:"5px 3px",textAlign:"center",fontSize:10,color:"#6b7280",fontWeight:700,borderBottom:"1px solid rgba(255,255,255,.1)",whiteSpace:"nowrap"};
-const inputStyle={background:"rgba(255,255,255,.06)",border:"1px solid rgba(124,58,237,.3)",borderRadius:10,padding:"8px 10px",color:"#e8e0ff",fontFamily:"Cairo",fontSize:13,outline:"none",width:"100%"};
-const actionBtn={border:"none",borderRadius:10,padding:"8px 16px",color:"#fff",fontFamily:"Cairo",fontSize:13,fontWeight:700,cursor:"pointer"};
-const addRowStyle={padding:"11px 14px",background:"rgba(124,58,237,.05)",borderRadius:13,display:"flex",alignItems:"center",justifyContent:"space-between"};
-
+const cardStyle: CSSProperties = {background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:15,padding:13};
+const arrowBtn: CSSProperties = {background:"rgba(124,58,237,.2)",border:"1px solid rgba(124,58,237,.4)",borderRadius:8,color:"#c084fc",width:32,height:32,cursor:"pointer",fontSize:18,fontFamily:"Cairo",display:"flex",alignItems:"center",justifyContent:"center"};
+const thStyle: CSSProperties = {padding:"5px 3px",textAlign:"center",fontSize:10,color:"#6b7280",fontWeight:700,borderBottom:"1px solid rgba(255,255,255,.1)",whiteSpace:"nowrap"};
+const inputStyle: CSSProperties = {background:"rgba(255,255,255,.06)",border:"1px solid rgba(124,58,237,.3)",borderRadius:10,padding:"8px 10px",color:"#e8e0ff",fontFamily:"Cairo",fontSize:13,outline:"none",width:"100%"};
+const actionBtn: CSSProperties = {border:"none",borderRadius:10,padding:"8px 16px",color:"#fff",fontFamily:"Cairo",fontSize:13,fontWeight:700,cursor:"pointer"};
+const addRowStyle: CSSProperties = {padding:"11px 14px",background:"rgba(124,58,237,.05)",borderRadius:13,display:"flex",alignItems:"center",justifyContent:"space-between"};
