@@ -88,6 +88,16 @@ type NewSalafState = {
   date: string;
 };
 
+type EditStaffState = {
+  id: string;
+  salary: string;
+  dailySalary: string;
+  managementBonus: string;
+  club: string;
+  role: string;
+  inAttendance: boolean;
+} | null;
+
 // ==================== CONSTANTS ====================
 const CLUBS: Club[] = [
   { id: "xo",   name: "XO Cairo", color: "#FF6B35", monthly: 31000, daily: null },
@@ -181,6 +191,7 @@ export default function App() {
 
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState<NewStaffState>({ name:"", role:"", club:"nox", workLocation:"", salary:"0", emoji:"👤", inAttendance:true });
+  const [editingStaff, setEditingStaff] = useState<EditStaffState>(null);
 
   // ==================== PERSIST TO LOCALSTORAGE ====================
   useEffect(() => { localStorage.setItem("currentMonth", String(currentMonth)); }, [currentMonth]);
@@ -333,7 +344,24 @@ export default function App() {
     setNewClub({ name:"", daily:null, monthly:"", color:"#A855F7", staffName:"" });
     setShowAddClub(false);
   };
-  const removeClub = (id: string) => setClubs(prev => prev.filter(c => c.id !== id));
+  const removeClub = (id: string) => {
+    setClubs(prev => prev.filter(c => c.id !== id));
+    setStaff(prev => prev.map(s => s.club === id ? { ...s, club: null } : s));
+  };
+
+  const saveStaffEdit = () => {
+    if (!editingStaff) return;
+    setStaff(prev => prev.map(s => s.id === editingStaff.id ? {
+      ...s,
+      salary: editingStaff.dailySalary ? null : (parseInt(editingStaff.salary) || 0),
+      dailySalary: editingStaff.dailySalary ? (parseInt(editingStaff.dailySalary) || null) : null,
+      managementBonus: parseInt(editingStaff.managementBonus) || 0,
+      club: editingStaff.club || null,
+      role: editingStaff.role || s.role,
+      inAttendance: editingStaff.inAttendance,
+    } : s));
+    setEditingStaff(null);
+  };
 
   const addLoad = () => {
     if (!newLoad.amount || !newLoad.day) return;
@@ -380,6 +408,7 @@ export default function App() {
     { id:"salaf",     label:"سلف",      icon:"🤝" },
     { id:"bonuses",    label:"حوافز",     icon:"🏆" },
     { id:"clubs",     label:"كلوبات",   icon:"🎪" },
+    { id:"operator",  label:"Operator", icon:"⚙️" },
   ];
 
   // ==================== ADD STAFF MODAL ====================
@@ -986,14 +1015,129 @@ export default function App() {
                     })}
                   </div>
                   {offDays>0&&<div style={{ marginTop:8,padding:"5px 10px",background:"rgba(248,113,113,.07)",borderRadius:8,fontSize:12,color:"#f87171" }}>⚠️ خسارة: {formatEGP(club.daily ? Math.round(club.daily*offDays) : Math.round((club.monthly ?? 0)*offDays/daysInMonth))}</div>}
-                  {!CLUBS.find(c=>c.id===club.id)&&(
-                    <button onClick={()=>removeClub(club.id)} style={{ marginTop:8,background:"rgba(248,113,113,.1)",border:"1px solid rgba(248,113,113,.3)",borderRadius:8,color:"#f87171",padding:"4px 12px",cursor:"pointer",fontSize:12,fontFamily:"Cairo",fontWeight:700,width:"100%" }}>🗑️ حذف الكلوب</button>
-                  )}
+                  {/* Delete button for ALL clubs */}
+                  <button onClick={()=>removeClub(club.id)} style={{ marginTop:8,background:"rgba(248,113,113,.1)",border:"1px solid rgba(248,113,113,.3)",borderRadius:8,color:"#f87171",padding:"4px 12px",cursor:"pointer",fontSize:12,fontFamily:"Cairo",fontWeight:700,width:"100%" }}>🗑️ حذف الكلوب</button>
                 </div>
               );
             })}
           </div>
         )}
+        {/* ===== OPERATOR ===== */}
+        {activeTab==="operator" && (
+          <div className="fade">
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+              <SectionTitle>⚙️ إدارة الموظفين — Operator</SectionTitle>
+              <button onClick={()=>setShowAddStaff(true)} style={{ background:"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",borderRadius:10,color:"#fff",padding:"6px 13px",fontSize:12,fontFamily:"Cairo",fontWeight:700,cursor:"pointer" }}>+ موظف</button>
+            </div>
+
+            {/* Edit modal */}
+            {editingStaff && (
+              <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.88)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+                <div style={{ background:"#12101e",border:"1px solid rgba(124,58,237,.5)",borderRadius:20,padding:24,width:"100%",maxWidth:380 }}>
+                  <div style={{ fontWeight:900,fontSize:16,color:"#c084fc",marginBottom:16 }}>
+                    ✏️ تعديل بيانات {staff.find(s=>s.id===editingStaff.id)?.name}
+                  </div>
+                  <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                    <div>
+                      <div style={{ fontSize:11,color:"#6b7280",marginBottom:4 }}>الدور / المسمى الوظيفي</div>
+                      <input value={editingStaff.role} onChange={e=>setEditingStaff(p=>p?{...p,role:e.target.value}:p)} placeholder="مثال: مشغل، مدير" style={inputStyle} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11,color:"#6b7280",marginBottom:4 }}>الكلوب</div>
+                      <select value={editingStaff.club} onChange={e=>setEditingStaff(p=>p?{...p,club:e.target.value}:p)} style={inputStyle}>
+                        <option value="">بدون كلوب (Unemployed)</option>
+                        {clubs.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:11,color:"#6b7280",marginBottom:4 }}>الراتب الثابت (شهري)</div>
+                        <input type="number" value={editingStaff.salary} onChange={e=>setEditingStaff(p=>p?{...p,salary:e.target.value,dailySalary:""}:p)} placeholder="0" style={inputStyle} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11,color:"#6b7280",marginBottom:4 }}>راتب يومي</div>
+                        <input type="number" value={editingStaff.dailySalary} onChange={e=>setEditingStaff(p=>p?{...p,dailySalary:e.target.value,salary:""}:p)} placeholder="0" style={inputStyle} />
+                      </div>
+                    </div>
+                    <div style={{ fontSize:11,color:"#6b7280",padding:"4px 8px",background:"rgba(124,58,237,.08)",borderRadius:7 }}>
+                      ⚠️ لو حطيت راتب يومي، الشهري بيتجاهل — وبالعكس
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11,color:"#6b7280",marginBottom:4 }}>بونص الإدارة (شهري)</div>
+                      <input type="number" value={editingStaff.managementBonus} onChange={e=>setEditingStaff(p=>p?{...p,managementBonus:e.target.value}:p)} placeholder="0" style={inputStyle} />
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",gap:8,marginTop:16 }}>
+                    <button onClick={saveStaffEdit} style={{...actionBtn,background:"linear-gradient(135deg,#7c3aed,#a855f7)",flex:1}}>💾 حفظ</button>
+                    <button onClick={()=>setEditingStaff(null)} style={{...actionBtn,background:"rgba(255,255,255,.08)",flex:1}}>إلغاء</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+              {staff.map(s=>{
+                const club = clubs.find(c=>c.id===s.club);
+                const isUnemployed = !s.club;
+                return (
+                  <div key={s.id} style={{ ...cardStyle,borderRight:`3px solid ${isUnemployed?"#6b7280":club?.color||"#7c3aed"}` }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:11 }}>
+                      {/* Avatar */}
+                      <div style={{ width:44,height:44,borderRadius:12,background:isUnemployed?"rgba(107,114,128,.15)":`${club?.color||"#7c3aed"}20`,border:`2px solid ${isUnemployed?"rgba(107,114,128,.4)":club?.color||"#7c3aed"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>{s.emoji}</div>
+
+                      {/* Info */}
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <div style={{ display:"flex",alignItems:"center",gap:6,flexWrap:"wrap" }}>
+                          <span style={{ fontWeight:900,fontSize:14 }}>{s.name}</span>
+                          <span style={{ fontSize:11,color:"#7c3aed",background:"rgba(124,58,237,.12)",padding:"1px 6px",borderRadius:5 }}>{s.shortcut}</span>
+                          {isUnemployed
+                            ? <span style={{ fontSize:11,color:"#9ca3af",background:"rgba(107,114,128,.15)",padding:"1px 8px",borderRadius:5,border:"1px solid rgba(107,114,128,.3)" }}>Unemployed</span>
+                            : <span style={{ fontSize:11,color:club?.color,background:`${club?.color}18`,padding:"1px 8px",borderRadius:5 }}>{club?.name}</span>
+                          }
+                        </div>
+                        <div style={{ fontSize:11,color:"#9ca3af",marginTop:2 }}>{s.role}</div>
+                        <div style={{ display:"flex",gap:6,marginTop:4,flexWrap:"wrap" }}>
+                          {s.dailySalary
+                            ? <span style={{ fontSize:11,color:"#a78bfa",background:"rgba(167,139,250,.1)",padding:"2px 7px",borderRadius:5 }}>{s.dailySalary.toLocaleString()} جنيه/يوم</span>
+                            : <span style={{ fontSize:11,color:"#4ade80",background:"rgba(74,222,128,.08)",padding:"2px 7px",borderRadius:5 }}>{(s.salary??0).toLocaleString()} جنيه/شهر</span>
+                          }
+                          {s.managementBonus>0&&<span style={{ fontSize:11,color:"#c084fc",background:"rgba(192,132,252,.1)",padding:"2px 7px",borderRadius:5 }}>+{s.managementBonus.toLocaleString()} إدارة</span>}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{ display:"flex",flexDirection:"column",gap:5,flexShrink:0 }}>
+                        <button onClick={()=>setEditingStaff({
+                          id: s.id,
+                          salary: s.salary ? String(s.salary) : "",
+                          dailySalary: s.dailySalary ? String(s.dailySalary) : "",
+                          managementBonus: String(s.managementBonus),
+                          club: s.club || "",
+                          role: s.role,
+                        })} style={{ background:"rgba(124,58,237,.2)",border:"1px solid rgba(124,58,237,.4)",borderRadius:8,color:"#c084fc",padding:"4px 10px",cursor:"pointer",fontSize:12,fontFamily:"Cairo",fontWeight:700 }}>✏️ تعديل</button>
+                        <button onClick={()=>removeStaff(s.id)} style={{ background:"rgba(248,113,113,.1)",border:"1px solid rgba(248,113,113,.25)",borderRadius:8,color:"#f87171",padding:"4px 10px",cursor:"pointer",fontSize:12,fontFamily:"Cairo",fontWeight:700 }}>🗑️ حذف</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Unemployed summary */}
+            {staff.filter(s=>!s.club).length > 0 && (
+              <div style={{ ...cardStyle,marginTop:14,border:"1px solid rgba(107,114,128,.3)",background:"rgba(107,114,128,.05)" }}>
+                <div style={{ fontWeight:700,color:"#9ca3af",marginBottom:8,fontSize:13 }}>👤 موظفين بدون كلوب (Unemployed)</div>
+                {staff.filter(s=>!s.club).map(s=>(
+                  <div key={s.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,.05)" }}>
+                    <span style={{ fontSize:13 }}>{s.emoji} {s.name}</span>
+                    <span style={{ fontSize:11,color:"#6b7280",background:"rgba(107,114,128,.12)",padding:"2px 8px",borderRadius:5 }}>Unemployed</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
