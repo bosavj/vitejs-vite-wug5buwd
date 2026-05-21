@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 
 // ==================== CONSTANTS ====================
 const CLUBS = [
@@ -77,7 +77,13 @@ export default function App() {
   const [clubOff,    setClubOff]    = useState({});   // [clubId][day] = true
 
   // Load: [{ id, clubId, day, amount, note }]
-  const [loads, setLoads]   = useState([]);
+  const [loads, setLoads] = useState(() => {
+    const saved = localStorage.getItem("loads");
+    return saved ? JSON.parse(saved) : [];
+  })
+  useEffect(() => {
+    localStorage.setItem("loads", JSON.stringify(loads));
+  }, [loads])
   const [newLoad, setNewLoad] = useState({ clubId:"xo", day:"", amount:"", note:"" });
 
   // Bonuses: [{ id, staffId, amount, type, note, date }]
