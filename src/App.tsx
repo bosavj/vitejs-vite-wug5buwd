@@ -53,12 +53,14 @@ type NewClubState = {
   daily: string | null;
   monthly: string;
   color: string;
+  staffName: string;
 };
 
 type NewStaffState = {
   name: string;
   role: string;
   club: string;
+  workLocation: string;
   salary: string;
   emoji: string;
   inAttendance: boolean;
@@ -156,15 +158,15 @@ export default function App() {
 
   const [clubs, setClubs] = useState<Club[]>(() => { const s = localStorage.getItem("clubs"); return s ? JSON.parse(s) as Club[] : CLUBS; });
   const [showAddClub, setShowAddClub] = useState(false);
-  const [newClub, setNewClub] = useState<NewClubState>({ name:"", daily:null, monthly:"", color:"#A855F7" });
+  const [newClub, setNewClub] = useState<NewClubState>({ name:"", daily:null, monthly:"", color:"#A855F7", staffName:"" });
 
-  const [attendance, setAttendance] = useState<Record<string, Record<number, string | null>>>(() => { const s = localStorage.getItem("attendance"); return s ? JSON.parse(s) as Record<string, Record<number, string | null>> : {}; });
-  const [sessInput,  setSessInput]  = useState<Record<number, string>>(() => { const s = localStorage.getItem("sessInput");  return s ? JSON.parse(s) as Record<number, string> : {}; });
-  const [clubOff,    setClubOff]    = useState<Record<string, Record<number, boolean>>>(() => { const s = localStorage.getItem("clubOff");    return s ? JSON.parse(s) as Record<string, Record<number, boolean>> : {}; });
+  const [attendance, setAttendance] = useState<Record<string, Record<number, string | null>>>(() => { const s = localStorage.getItem(`attendance_${currentYear}_${currentMonth}`); return s ? JSON.parse(s) as Record<string, Record<number, string | null>> : {}; });
+  const [sessInput,  setSessInput]  = useState<Record<number, string>>(() => { const s = localStorage.getItem(`sessInput_${currentYear}_${currentMonth}`);  return s ? JSON.parse(s) as Record<number, string> : {}; });
+  const [clubOff,    setClubOff]    = useState<Record<string, Record<number, boolean>>>(() => { const s = localStorage.getItem(`clubOff_${currentYear}_${currentMonth}`);    return s ? JSON.parse(s) as Record<string, Record<number, boolean>> : {}; });
 
   // Load: [{ id, clubId, day, amount, note }]
   const [loads, setLoads] = useState<LoadItem[]>(() => {
-    const saved = localStorage.getItem("loads");
+    const saved = localStorage.getItem(`loads_${currentYear}_${currentMonth}`);
     return saved ? JSON.parse(saved) as LoadItem[] : [];
   });
   const [newLoad, setNewLoad] = useState<NewLoadState>({ clubId:"xo", day:"", amount:"", note:"" });
@@ -178,17 +180,17 @@ export default function App() {
   const [newSalaf, setNewSalaf] = useState<NewSalafState>({ staffId:"framel", amount:"", note:"", date:"" });
 
   const [showAddStaff, setShowAddStaff] = useState(false);
-  const [newStaff, setNewStaff] = useState<NewStaffState>({ name:"", role:"", club:"nox", salary:"0", emoji:"👤", inAttendance:true });
+  const [newStaff, setNewStaff] = useState<NewStaffState>({ name:"", role:"", club:"nox", workLocation:"", salary:"0", emoji:"👤", inAttendance:true });
 
   // ==================== PERSIST TO LOCALSTORAGE ====================
   useEffect(() => { localStorage.setItem("currentMonth", String(currentMonth)); }, [currentMonth]);
   useEffect(() => { localStorage.setItem("currentYear",  String(currentYear));  }, [currentYear]);
   useEffect(() => { localStorage.setItem("staff",      JSON.stringify(staff));      }, [staff]);
   useEffect(() => { localStorage.setItem("clubs",      JSON.stringify(clubs));      }, [clubs]);
-  useEffect(() => { localStorage.setItem("attendance", JSON.stringify(attendance)); }, [attendance]);
-  useEffect(() => { localStorage.setItem("sessInput",  JSON.stringify(sessInput));  }, [sessInput]);
-  useEffect(() => { localStorage.setItem("clubOff",    JSON.stringify(clubOff));    }, [clubOff]);
-  useEffect(() => { localStorage.setItem("loads",      JSON.stringify(loads));      }, [loads]);
+  useEffect(() => { localStorage.setItem(`attendance_${currentYear}_${currentMonth}`, JSON.stringify(attendance)); }, [attendance, currentYear, currentMonth]);
+  useEffect(() => { localStorage.setItem(`sessInput_${currentYear}_${currentMonth}`,  JSON.stringify(sessInput));  }, [sessInput, currentYear, currentMonth]);
+  useEffect(() => { localStorage.setItem(`clubOff_${currentYear}_${currentMonth}`,    JSON.stringify(clubOff));    }, [clubOff, currentYear, currentMonth]);
+  useEffect(() => { localStorage.setItem(`loads_${currentYear}_${currentMonth}`,      JSON.stringify(loads));      }, [loads, currentYear, currentMonth]);
   useEffect(() => { localStorage.setItem("bonuses",    JSON.stringify(bonuses));    }, [bonuses]);
   useEffect(() => { localStorage.setItem("salaf",      JSON.stringify(salaf));      }, [salaf]);
 
@@ -212,7 +214,7 @@ export default function App() {
     const staffSalaries = staff.map(s => {
       if (!s.inAttendance) {
         const salafTotal = salaf.filter(sl=>sl.staffId===s.id&&!sl.returned).reduce((a,sl)=>a+Number(sl.amount),0);
-        const bonusEarned1 = bonuses.filter(b=>b.staffId===s.id).reduce((a,b)=>a+Number(b.amount),0);
+        const bonusEarned1 = bonuses.filter(b=>b.staffId===s.id&&(!b.date||b.date.includes(`${currentYear}-${String(currentMonth+1).padStart(2,'0')}`)||b.date.includes(`${String(currentMonth+1).padStart(2,'0')}/${currentYear}`))).reduce((a,b)=>a+Number(b.amount),0);
         const fixedSalary1 = s.dailySalary ? s.dailySalary * daysInMonth : (s.salary ?? 0);
         const netFixed = Math.max(0, fixedSalary1 + s.managementBonus + bonusEarned1 - salafTotal);
         return { ...s, offDays:0, deduction:0, sessCount:0, sessEarned:0, bonusEarned:bonusEarned1, total:netFixed, salafTotal };
@@ -236,7 +238,7 @@ export default function App() {
       const sessEarned = sessCount * 250;
       const salafTotal = salaf.filter(sl=>sl.staffId===s.id&&!sl.returned).reduce((a,sl)=>a+Number(sl.amount),0);
 
-      const bonusEarned = bonuses.filter(b=>b.staffId===s.id).reduce((a,b)=>a+Number(b.amount),0);
+      const bonusEarned = bonuses.filter(b=>b.staffId===s.id&&(!b.date||b.date.includes(`${currentYear}-${String(currentMonth+1).padStart(2,'0')}`)||b.date.includes(`${String(currentMonth+1).padStart(2,'0')}/${currentYear}`))).reduce((a,b)=>a+Number(b.amount),0);
       const netAfterSalaf = Math.max(0, earned + s.managementBonus + sessEarned + bonusEarned - salafTotal);
       return { ...s, offDays, deduction, sessCount, sessEarned, bonusEarned, salafTotal, total: netAfterSalaf };
     });
@@ -252,7 +254,8 @@ export default function App() {
     // Salaf totals
     const totalSalaf = salaf.filter(s=>!s.returned).reduce((a,s)=>a+Number(s.amount),0);
 
-    const totalBonuses = bonuses.reduce((a,b)=>a+Number(b.amount),0);
+    const monthBonuses = bonuses.filter(b=>!b.date||b.date.includes(`${currentYear}-${String(currentMonth+1).padStart(2,'0')}`)||b.date.includes(`${String(currentMonth+1).padStart(2,'0')}/${currentYear}`));
+    const totalBonuses = monthBonuses.reduce((a,b)=>a+Number(b.amount),0);
     const netProfit = totalRevenue - totalSalaries - totalLoads;
 
     // Period reports
@@ -316,7 +319,7 @@ export default function App() {
     const shortcut = buildShortcut(newStaff.name, existingShortcuts);
     const id = newStaff.name.toLowerCase().replace(/\s/g,"_") + Date.now();
     setStaff(prev=>[...prev,{ id, name:newStaff.name, shortcut, role:newStaff.role, club:newStaff.club||null, salary:parseInt(newStaff.salary)||0, dailySalary:null, managementBonus:0, emoji:newStaff.emoji||"👤", inAttendance:newStaff.inAttendance }]);
-    setNewStaff({ name:"", role:"", club:"nox", salary:"0", emoji:"👤", inAttendance:true });
+    setNewStaff({ name:"", role:"", club:"nox", workLocation:"", salary:"0", emoji:"👤", inAttendance:true });
     setShowAddStaff(false);
   };
   const removeStaff = (id: string) => setStaff(prev=>prev.filter(s=>s.id!==id));
@@ -327,7 +330,7 @@ export default function App() {
     const monthly = newClub.monthly ? Number(newClub.monthly) : null;
     const daily   = newClub.daily   ? Number(newClub.daily)   : null;
     setClubs(prev => [...prev, { id, name:newClub.name, color:newClub.color, monthly, daily }]);
-    setNewClub({ name:"", daily:null, monthly:"", color:"#A855F7" });
+    setNewClub({ name:"", daily:null, monthly:"", color:"#A855F7", staffName:"" });
     setShowAddClub(false);
   };
   const removeClub = (id: string) => setClubs(prev => prev.filter(c => c.id !== id));
@@ -350,8 +353,21 @@ export default function App() {
   const toggleSalafReturned = (id: number) => setSalaf(prev=>prev.map(s=>s.id===id?{...s,returned:!s.returned}:s));
   const removeSalaf = (id: number) => setSalaf(prev=>prev.filter(s=>s.id!==id));
 
-  const prevMonth = () => { setAttendance({}); setClubOff({}); setSessInput({}); if(currentMonth===0){setCurrentMonth(11);setCurrentYear(y=>y-1);}else setCurrentMonth(m=>m-1); };
-  const nextMonth = () => { setAttendance({}); setClubOff({}); setSessInput({}); if(currentMonth===11){setCurrentMonth(0);setCurrentYear(y=>y+1);}else setCurrentMonth(m=>m+1); };
+  const switchMonth = (newMonth: number, newYear: number) => {
+    // Load saved data for the target month
+    const att = localStorage.getItem(`attendance_${newYear}_${newMonth}`);
+    const sess = localStorage.getItem(`sessInput_${newYear}_${newMonth}`);
+    const coff = localStorage.getItem(`clubOff_${newYear}_${newMonth}`);
+    const lds = localStorage.getItem(`loads_${newYear}_${newMonth}`);
+    setAttendance(att ? JSON.parse(att) : {});
+    setSessInput(sess ? JSON.parse(sess) : {});
+    setClubOff(coff ? JSON.parse(coff) : {});
+    setLoads(lds ? JSON.parse(lds) : []);
+    setCurrentMonth(newMonth);
+    setCurrentYear(newYear);
+  };
+  const prevMonth = () => { if(currentMonth===0){ switchMonth(11, currentYear-1); }else{ switchMonth(currentMonth-1, currentYear); } };
+  const nextMonth = () => { if(currentMonth===11){ switchMonth(0, currentYear+1); }else{ switchMonth(currentMonth+1, currentYear); } };
 
   const attendanceStaff = staff.filter(s=>s.inAttendance);
 
@@ -367,38 +383,7 @@ export default function App() {
   ];
 
   // ==================== ADD STAFF MODAL ====================
-  const AddStaffModal = () => (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
-      <div style={{ background:"#12101e",border:"1px solid rgba(124,58,237,.5)",borderRadius:20,padding:24,width:"100%",maxWidth:360 }}>
-        <div style={{ fontWeight:900,fontSize:16,color:"#c084fc",marginBottom:14 }}>➕ موظف جديد</div>
-        <div style={{ display:"flex",flexDirection:"column",gap:9 }}>
-          <input placeholder="الاسم (بالإنجليزي)" value={newStaff.name} onChange={e=>setNewStaff(p=>({...p,name:e.target.value}))} style={inputStyle} />
-          <div style={{ fontSize:11,color:"#7c3aed",padding:"4px 8px",background:"rgba(124,58,237,.1)",borderRadius:8 }}>
-            الاختصار سيكون: <strong>{newStaff.name ? buildShortcut(newStaff.name, staff.map(s=>s.shortcut)) : "..."}</strong>
-          </div>
-          <input placeholder="الدور" value={newStaff.role} onChange={e=>setNewStaff(p=>({...p,role:e.target.value}))} style={inputStyle} />
-          <input placeholder="الراتب الثابت" type="number" value={newStaff.salary} onChange={e=>setNewStaff(p=>({...p,salary:e.target.value}))} style={inputStyle} />
-          <select value={newStaff.club} onChange={e=>setNewStaff(p=>({...p,club:e.target.value}))} style={inputStyle}>
-            <option value="">بدون كلوب</option>
-            {clubs.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <div style={{ display:"flex",gap:6 }}>
-            {["👤","🎛️","🤝","👑","🎵","⚡","🔧"].map(e=>(
-              <button key={e} onClick={()=>setNewStaff(p=>({...p,emoji:e}))} style={{ fontSize:20,background:newStaff.emoji===e?"rgba(124,58,237,.35)":"rgba(255,255,255,.05)",border:newStaff.emoji===e?"1px solid #7c3aed":"1px solid transparent",borderRadius:8,padding:"4px 7px",cursor:"pointer" }}>{e}</button>
-            ))}
-          </div>
-          <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#9ca3af",cursor:"pointer" }}>
-            <input type="checkbox" checked={newStaff.inAttendance} onChange={e=>setNewStaff(p=>({...p,inAttendance:e.target.checked}))} />
-            بيسجل حضور وغياب
-          </label>
-        </div>
-        <div style={{ display:"flex",gap:8,marginTop:14 }}>
-          <button onClick={addStaffMember} style={{...actionBtn,background:"linear-gradient(135deg,#7c3aed,#a855f7)",flex:1}}>إضافة</button>
-          <button onClick={()=>setShowAddStaff(false)} style={{...actionBtn,background:"rgba(255,255,255,.08)",flex:1}}>إلغاء</button>
-        </div>
-      </div>
-    </div>
-  );
+  // NOTE: rendered as inline JSX in return to avoid keyboard dismiss bug
 
   // ==================== RENDER ====================
   return (
@@ -416,7 +401,39 @@ export default function App() {
         input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
       `}</style>
 
-      {showAddStaff && <AddStaffModal />}
+      {showAddStaff && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20 }}>
+          <div style={{ background:"#12101e",border:"1px solid rgba(124,58,237,.5)",borderRadius:20,padding:24,width:"100%",maxWidth:360 }}>
+            <div style={{ fontWeight:900,fontSize:16,color:"#c084fc",marginBottom:14 }}>➕ موظف جديد</div>
+            <div style={{ display:"flex",flexDirection:"column",gap:9 }}>
+              <input placeholder="الاسم (بالإنجليزي)" value={newStaff.name} onChange={e=>setNewStaff(p=>({...p,name:e.target.value}))} style={inputStyle} />
+              <div style={{ fontSize:11,color:"#7c3aed",padding:"4px 8px",background:"rgba(124,58,237,.1)",borderRadius:8 }}>
+                الاختصار سيكون: <strong>{newStaff.name ? buildShortcut(newStaff.name, staff.map(s=>s.shortcut)) : "..."}</strong>
+              </div>
+              <input placeholder="الدور (مثال: مشغل، مدير)" value={newStaff.role} onChange={e=>setNewStaff(p=>({...p,role:e.target.value}))} style={inputStyle} />
+              <input placeholder="هيشتغل فين؟ (مثال: Nox, XO)" value={newStaff.workLocation} onChange={e=>setNewStaff(p=>({...p,workLocation:e.target.value}))} style={inputStyle} />
+              <input placeholder="الراتب الثابت" type="number" value={newStaff.salary} onChange={e=>setNewStaff(p=>({...p,salary:e.target.value}))} style={inputStyle} />
+              <select value={newStaff.club} onChange={e=>setNewStaff(p=>({...p,club:e.target.value}))} style={inputStyle}>
+                <option value="">بدون كلوب</option>
+                {clubs.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <div style={{ display:"flex",gap:6 }}>
+                {["👤","🎛️","🤝","👑","🎵","⚡","🔧"].map(e=>(
+                  <button key={e} onClick={()=>setNewStaff(p=>({...p,emoji:e}))} style={{ fontSize:20,background:newStaff.emoji===e?"rgba(124,58,237,.35)":"rgba(255,255,255,.05)",border:newStaff.emoji===e?"1px solid #7c3aed":"1px solid transparent",borderRadius:8,padding:"4px 7px",cursor:"pointer" }}>{e}</button>
+                ))}
+              </div>
+              <label style={{ display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#9ca3af",cursor:"pointer" }}>
+                <input type="checkbox" checked={newStaff.inAttendance} onChange={e=>setNewStaff(p=>({...p,inAttendance:e.target.checked}))} />
+                بيسجل حضور وغياب
+              </label>
+            </div>
+            <div style={{ display:"flex",gap:8,marginTop:14 }}>
+              <button onClick={addStaffMember} style={{...actionBtn,background:"linear-gradient(135deg,#7c3aed,#a855f7)",flex:1}}>إضافة</button>
+              <button onClick={()=>setShowAddStaff(false)} style={{...actionBtn,background:"rgba(255,255,255,.08)",flex:1}}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* HEADER */}
       <div style={{ background:"linear-gradient(90deg,rgba(124,58,237,.3),rgba(16,16,30,.95))",borderBottom:"1px solid rgba(124,58,237,.4)",padding:"13px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(20px)" }}>
@@ -870,7 +887,10 @@ export default function App() {
                   <option value="عمولة">💹 عمولة</option>
                 </select>
                 <input type="number" placeholder="المبلغ (جنيه)" value={newBonus.amount} onChange={e=>setNewBonus(p=>({...p,amount:e.target.value}))} style={inputStyle} />
-                <input placeholder="التاريخ (اختياري)" value={newBonus.date} onChange={e=>setNewBonus(p=>({...p,date:e.target.value}))} style={inputStyle} />
+                <div style={{ display:"flex",flexDirection:"column",gap:4,gridColumn:"span 1" }}>
+                  <input placeholder="التاريخ: 2025-05 أو 05/2025" value={newBonus.date} onChange={e=>setNewBonus(p=>({...p,date:e.target.value}))} style={inputStyle} />
+                  <div style={{ fontSize:10,color:"#6b7280",paddingRight:4 }}>مثال: <span style={{color:"#fbbf24"}}>2025-05</span> أو <span style={{color:"#fbbf24"}}>05/2025</span> — لو فضيت فاضي هيظهر في كل الشهور</div>
+                </div>
                 <input placeholder="ملاحظة (مثال: أداء ممتاز)" value={newBonus.note} onChange={e=>setNewBonus(p=>({...p,note:e.target.value}))} style={{ ...inputStyle,gridColumn:"1 / -1" }} />
               </div>
               <button onClick={addBonus} style={{...actionBtn,background:"linear-gradient(135deg,#92400e,#fbbf24)",width:"100%"}}>+ إضافة</button>
@@ -881,8 +901,8 @@ export default function App() {
               ? <div style={{ textAlign:"center",padding:30,color:"#4b5563",fontSize:14 }}>لا يوجد حوافز مسجلة</div>
               : (
                 <>
-                  {staff.filter(s=>bonuses.some(b=>b.staffId===s.id)).map(s=>{
-                    const sBonuses=bonuses.filter(b=>b.staffId===s.id);
+                  {staff.filter(s=>bonuses.some(b=>b.staffId===s.id&&(!b.date||b.date.includes(`${currentYear}-${String(currentMonth+1).padStart(2,'0')}`)||b.date.includes(`${String(currentMonth+1).padStart(2,'0')}/${currentYear}`)))).map(s=>{
+                    const sBonuses=bonuses.filter(b=>b.staffId===s.id&&(!b.date||b.date.includes(`${currentYear}-${String(currentMonth+1).padStart(2,'0')}`)||b.date.includes(`${String(currentMonth+1).padStart(2,'0')}/${currentYear}`)));
                     const total=sBonuses.reduce((a,b)=>a+Number(b.amount),0);
                     return (
                       <div key={s.id} style={{ ...cardStyle,marginBottom:12,borderRight:"3px solid #fbbf24" }}>
@@ -929,6 +949,7 @@ export default function App() {
                   <input placeholder="اللون (#hex)" value={newClub.color} onChange={e=>setNewClub(p=>({...p,color:e.target.value}))} style={{...inputStyle,color:newClub.color}} />
                   <input type="number" placeholder="سعر اليوم (لو يومي)" value={newClub.daily||""} onChange={e=>setNewClub(p=>({...p,daily:e.target.value||null,monthly:""}))} style={inputStyle} />
                   <input type="number" placeholder="الشهري الثابت" value={newClub.monthly||""} onChange={e=>setNewClub(p=>({...p,monthly:e.target.value||"",daily:null}))} style={inputStyle} />
+                  <input placeholder="اسم المسؤول (مثال: Framel)" value={newClub.staffName} onChange={e=>setNewClub(p=>({...p,staffName:e.target.value}))} style={{...inputStyle,gridColumn:"1 / -1"}} />
                 </div>
                 <div style={{ fontSize:11,color:"#6b7280",marginBottom:8 }}>اكتب إما سعر اليوم أو الشهري الثابت</div>
                 <div style={{ display:"flex",gap:8 }}>
